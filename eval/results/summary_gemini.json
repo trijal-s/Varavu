@@ -1,0 +1,15 @@
+{
+  "provider": "gemini",
+  "key_field_accuracy": 97.1,
+  "accuracy": 96.4,
+  "counts": {
+    "correct": 89,
+    "wrong": 1,
+    "both_empty": 17,
+    "invented": 3
+  },
+  "by_difficulty": {
+    "easy": 95.1,
+    "medium": 100.0
+  }
+}
