@@ -1,0 +1,41 @@
+{
+  "document_type": "cash_bill",
+  "is_readable": true,
+  "is_obscured": false,
+  "entries": [
+    {
+      "vendor_name": "PREET PALACE",
+      "vendor_phone": "011-24374999 24370999 24973288 9312166101 9871145542",
+      "vendor_gstin": "",
+      "party_name": "THEENADAYALAN",
+      "bill_number": "1338",
+      "date_as_written": "28/13/24",
+      "transaction_type": "unknown",
+      "line_items": [
+        {
+          "description": "R.R",
+          "quantity": 1.0,
+          "unit": null,
+          "rate": 2300.0,
+          "amount": 2300.0,
+          "hsn_code": null,
+          "taxable_amount": null,
+          "tax_amount": null,
+          "tax_rate": null
+        }
+      ],
+      "subtotal": null,
+      "cgst": null,
+      "sgst": null,
+      "igst": null,
+      "discount": null,
+      "total": 2300.0,
+      "total_in_words": "TWO THOUSAND THREE HUNDRED ONLY",
+      "tax_inclusive": null,
+      "amount_paid": 2300.0,
+      "balance_due": 0.0,
+      "payment_mode": "cash",
+      "low_confidence_fields": []
+    }
+  ]
+}

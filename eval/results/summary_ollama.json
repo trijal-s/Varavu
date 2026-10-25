@@ -1,0 +1,16 @@
+{
+  "provider": "ollama",
+  "key_field_accuracy": 50.0,
+  "accuracy": 47.3,
+  "counts": {
+    "correct": 39,
+    "wrong": 5,
+    "missed": 46,
+    "both_empty": 13,
+    "invented": 7
+  },
+  "by_difficulty": {
+    "easy": 35.4,
+    "medium": 82.1
+  }
+}

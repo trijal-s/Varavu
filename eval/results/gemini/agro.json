@@ -1,0 +1,107 @@
+{
+  "document_type": "tax_invoice",
+  "is_readable": true,
+  "is_obscured": false,
+  "entries": [
+    {
+      "vendor_name": "ஸ்ரீ முருகன் அக்ரோ சர்வீஸ்",
+      "vendor_phone": "9342622095, 8973333385, 7200149443",
+      "vendor_gstin": "33BUQPB4015B1ZA",
+      "party_name": "DICE",
+      "bill_number": "4283/23-24",
+      "date_as_written": "1/3/2024",
+      "transaction_type": "sale",
+      "line_items": [
+        {
+          "description": "BALIO 250 ML",
+          "quantity": 3.0,
+          "unit": "Nos",
+          "rate": 280.0,
+          "amount": 840.0,
+          "hsn_code": "0",
+          "taxable_amount": 711.87,
+          "tax_amount": 128.14,
+          "tax_rate": 18.0
+        },
+        {
+          "description": "GALIGAN 100 ML",
+          "quantity": 1.0,
+          "unit": "Nos",
+          "rate": 240.0,
+          "amount": 240.0,
+          "hsn_code": "0",
+          "taxable_amount": 203.39,
+          "tax_amount": 36.62,
+          "tax_rate": 18.0
+        },
+        {
+          "description": "JATAYU 100 GM",
+          "quantity": 2.0,
+          "unit": "Nos",
+          "rate": 170.0,
+          "amount": 340.0,
+          "hsn_code": "38089910",
+          "taxable_amount": 288.14,
+          "tax_amount": 51.86,
+          "tax_rate": 18.0
+        },
+        {
+          "description": "MAHAVEER 100 ML",
+          "quantity": 5.0,
+          "unit": "Nos",
+          "rate": 140.0,
+          "amount": 700.0,
+          "hsn_code": "38089199",
+          "taxable_amount": 593.2,
+          "tax_amount": 106.78,
+          "tax_rate": 18.0
+        },
+        {
+          "description": "NANOMOL 100 ML",
+          "quantity": 2.0,
+          "unit": "Nos",
+          "rate": 150.0,
+          "amount": 300.0,
+          "hsn_code": "0",
+          "taxable_amount": 267.86,
+          "tax_amount": 32.14,
+          "tax_rate": 12.0
+        },
+        {
+          "description": "RASI 5 KG BAG",
+          "quantity": 1.0,
+          "unit": "Nos",
+          "rate": 350.0,
+          "amount": 350.0,
+          "hsn_code": "28332990",
+          "taxable_amount": 312.5,
+          "tax_amount": 37.5,
+          "tax_rate": 12.0
+        },
+        {
+          "description": "SAFF 250 GM",
+          "quantity": 2.0,
+          "unit": "Nos",
+          "rate": 200.0,
+          "amount": 400.0,
+          "hsn_code": "38089910",
+          "taxable_amount": 338.98,
+          "tax_amount": 61.02,
+          "tax_rate": 18.0
+        }
+      ],
+      "subtotal": 2715.94,
+      "cgst": 227.03,
+      "sgst": 227.03,
+      "igst": null,
+      "discount": null,
+      "total": 3170.0,
+      "total_in_words": "Three Thousand One Hundred And Seventy Rupees",
+      "tax_inclusive": true,
+      "amount_paid": null,
+      "balance_due": 0.0,
+      "payment_mode": "unknown",
+      "low_confidence_fields": []
+    }
+  ]
+}
