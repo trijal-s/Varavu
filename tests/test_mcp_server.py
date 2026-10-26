@@ -52,7 +52,7 @@ def test_full_flow_through_mcp(env):
     error, scanned = call("scan_inbox")
     assert not error and len(scanned["new"]) == 1
 
-    error, drafts = call("scan_pending")
+    error, drafts = call("scan_bill", upload_id=1)
     assert not error and "line_items[1].rate" in drafts[0]["needs_review"]
     draft_id = drafts[0]["draft_id"]
 
@@ -69,7 +69,7 @@ def test_full_flow_through_mcp(env):
 
 def test_errors_come_back_as_messages(env):
     call("scan_inbox")
-    _, drafts = call("scan_pending")
+    _, drafts = call("scan_bill", upload_id=1)
     error, message = call("confirm_entry", draft_id=drafts[0]["draft_id"], transaction_type="unknown")
     assert error and "purchase, sale or expense" in message
 
@@ -87,3 +87,48 @@ def test_tools_are_annotated():
     tools = {t.name: t for t in anyio.run(run)}
     assert tools["monthly_summary"].annotations.read_only_hint is True
     assert tools["confirm_entry"].annotations.read_only_hint is False
+
+
+def test_background_scan_and_questions(env):
+    call("scan_inbox")
+    error, started = call("start_scan")
+    assert not error and started["queued"] == [1]
+    varavu.worker.thread.join(timeout=10)
+    _, status = call("scan_status")
+    assert status["drafts_waiting_for_review"] == 1
+
+    _, drafts = call("list_drafts")
+    call("confirm_entry", draft_id=drafts[0]["draft_id"], transaction_type="purchase", category="cattle feed",
+         corrections={"line_items[1].rate": 580})
+    _, found = call("search_bills", query="bran")
+    assert found[0]["vendor_name"] == "SRI MURUGAN TRADERS"
+    _, answer = call("query_ledger", sql="SELECT id, total FROM transactions WHERE category = 'cattle feed'")
+    assert answer["rows"] == [[1, 11000.0]]
+    error, message = call("query_ledger", sql="DELETE FROM transactions")
+    assert error and "Only SELECT" in message
+
+
+def test_draft_from_chat_image(env):
+    entry = {"vendor_name": "SAI BOOK & XEROX HOUSE", "bill_number": "584", "date_as_written": "25/02/2026",
+             "line_items": [{"description": "Ink pad", "quantity": 2, "rate": 40, "amount": 80},
+                            {"description": "Fevistick", "quantity": 1, "rate": 25, "amount": 25}],
+             "total": 150}  # misread total: rows add up to 105
+    error, draft = call("draft_from_chat_image", document_type="cash_bill", entry=entry, description="sai_book.png")
+    assert not error and "total" in draft["needs_review"]
+
+    error, message = call("draft_from_chat_image", document_type="cash_bill", entry=entry)
+    assert error and "already exists" in message  # the same reading twice is refused
+
+    error, message = call("show_bill", upload_id=draft["upload_id"])
+    assert error and "no photo is stored" in message
+
+    error, saved = call("confirm_entry", draft_id=draft["draft_id"], transaction_type="purchase",
+                        category="stationery", corrections={"total": 105})
+    assert not error and saved["total"] == 105
+def test_instructions_send_bill_questions_to_the_ledger():
+    async def run():
+        async with Client(varavu.server) as client:
+            return client.instructions
+    text = anyio.run(run)
+    assert "check the ledger first" in text
+    assert "only with what is written" in text
