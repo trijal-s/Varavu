@@ -25,7 +25,8 @@ from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 from mcp.types import ToolAnnotations  # noqa: E402
 
 from backend.app.db import connect  # noqa: E402
-from backend.app.services import drafts, export, inbox, ledger, reports  # noqa: E402
+from backend.app.schemas.extraction import BillEntry, DocumentType  # noqa: E402
+from backend.app.services import drafts, export, inbox, jobs, ledger, reports, search  # noqa: E402
 
 READ_ONLY = ToolAnnotations(read_only_hint=True)
 WRITES = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -33,12 +34,17 @@ WRITES = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 server = MCPServer(
     "varavu",
     instructions=(
-        "Varavu turns photos of Indian bills into a ledger. Typical flow: scan_inbox, scan_pending, then for "
-        "each draft show the user its fields, needs_review list and suggestions (use show_bill to look at the "
-        "photo). Only call confirm_entry after the user has approved the values, and pass their corrections. "
-        "Never invent values that are not on the bill. Amounts are in rupees; dates are day-first."
-    ),
-)
+        "Varavu holds the user's bills and accounts ledger. For ANY question about the user's own bills, "
+        "vendors, spending, payments or expenses (e.g. 'why was my electricity bill high?', 'what did I spend "
+        "on food?'), check the ledger first with search_bills or query_ledger, then get_transaction. "
+        "Don't answer from general knowledge before checking the ledger. "
+        "To add bills: scan_inbox then start_scan (runs in the background; check with scan_status), or "
+        "draft_from_chat_image for images attached in the chat. For each draft show the user its fields, "
+        "needs_review list and suggestions (use show_bill when a photo is stored). Only call confirm_entry "
+        "after the user has approved the values. Cite the transaction ids behind every answer. "
+        "Describe bills only with what is written on them; don't infer how many people, why, or for whom. "
+        "If you add general knowledge (e.g. how tariffs work), say clearly that it is general, not from the bill. "
+        "Amounts are in rupees; dates are day-first (DD/MM/YY)."),)
 
 
 @contextmanager
@@ -82,25 +88,39 @@ def list_pending() -> list[dict]:
 
 @server.tool(annotations=WRITES)
 def scan_bill(upload_id: int) -> list[dict]:
-    """Read one uploaded bill with the extraction agent and save it as draft(s) for review.
-    Does not add anything to the ledger."""
+    """Scan ONE upload and wait for the result (usually 10 to 60 seconds). For several bills, or if this
+    times out, use start_scan instead. Saves draft(s) for review; does not add anything to the ledger."""
     provider, fallback = get_providers()
     with db() as conn:
         return drafts.scan_upload(conn, upload_id, provider, fallback)
 
 
+worker = jobs.ScanWorker(lambda: get_providers())
+
+
 @server.tool(annotations=WRITES)
-def scan_pending(max_bills: int = 5) -> list[dict]:
-    """Scan up to max_bills pending uploads into drafts. Failed bills are reported, not skipped silently."""
-    provider, fallback = get_providers()
-    results = []
+def start_scan(upload_ids: list[int] | None = None) -> dict:
+    """Start scanning pending uploads in the background (all of them, or only upload_ids) and return at once.
+    Use scan_status to see progress; drafts appear as each bill finishes."""
     with db() as conn:
-        for upload in inbox.list_pending(conn)[:max_bills]:
-            try:
-                results += drafts.scan_upload(conn, upload["upload_id"], provider, fallback)
-            except Exception as error:
-                results.append({"upload_id": upload["upload_id"], "file": upload["file"], "error": str(error)})
-    return results
+        queued = jobs.queue_uploads(conn, upload_ids)
+    started = worker.start()
+    return {"queued": queued, "worker": "started" if started else "already running",
+            "next": "Call scan_status in a little while; each bill usually takes 10 to 60 seconds."}
+
+
+@server.tool(annotations=READ_ONLY)
+def scan_status() -> dict:
+    """Progress of background scans: uploads by status, failures with their errors, drafts waiting for review."""
+    with db() as conn:
+        return jobs.scan_status(conn)
+
+
+@server.tool(annotations=WRITES)
+def retry_failed_scan(upload_id: int) -> dict:
+    """Put a failed upload back to pending so it can be scanned again."""
+    with db() as conn:
+        return jobs.retry_failed(conn, upload_id)
 
 
 # ---------- Reviewing drafts ----------
@@ -124,7 +144,22 @@ def get_draft(draft_id: int) -> dict:
 def show_bill(upload_id: int) -> Image:
     """Return the original bill photo, so the values can be checked against it."""
     with db() as conn:
-        return Image(path=inbox.get_upload(conn, upload_id)["file_path"])
+        path = inbox.get_upload(conn, upload_id)["file_path"]
+    if path.startswith(drafts.CHAT_SOURCE):
+        raise ToolError("This bill came from a chat attachment, so no photo is stored. Use the image in the chat.")
+    return Image(path=path)
+
+
+@server.tool(annotations=WRITES)
+def draft_from_chat_image(document_type: DocumentType, entry: BillEntry, description: str = "") -> dict:
+    """Create a draft from a bill image the user ATTACHED IN THE CHAT (MCP tools can't receive the file itself).
+    Read the image carefully and pass values exactly as written: copy numbers, keep dates as written
+    (day-first), leave out anything unclear and list it in low_confidence_fields. Never calculate or guess
+    missing values. Use one call per bill; skip duplicates and things that aren't bills (e.g. a shopping
+    list). The draft goes through the same checks, and still needs the user's confirmation.
+    description: a short label such as the file name or vendor."""
+    with db() as conn:
+        return drafts.create_draft_from_reading(conn, document_type, entry, description)
 
 
 @server.tool(annotations=WRITES)
@@ -180,5 +215,47 @@ def export_year(financial_year: str) -> dict:
         return export.export_year(conn, financial_year)
 
 
+# ---------- Questions over the ledger ----------
+
+@server.tool(annotations=READ_ONLY)
+def search_bills(query: str, limit: int = 10) -> list[dict]:
+    """Look up the user's own bills by vendor, item, category or bill number, e.g. 'electricity', 'Adani',
+    'bran', 'hotel'. Use this first for any question about a specific bill or expense, then get_transaction
+    for details. Ranked by relevance (BM25)."""
+    with db() as conn:
+        return search.search_bills(conn, query, limit)
+
+
+@server.tool(annotations=READ_ONLY, description=(
+    "Answer numeric questions with ONE read-only SQL SELECT on the ledger (max 200 rows). Include "
+    "transactions.id in results so answers can cite their bills.\n" + search.LEDGER_SCHEMA))
+def query_ledger(sql: str) -> dict:
+    try:
+        return search.run_readonly_query(sql)
+    except ValueError as error:
+        raise ToolError(str(error)) from error
+
+
+@server.tool(annotations=READ_ONLY)
+def get_transaction(transaction_id: int) -> dict:
+    """One ledger entry in full, with its line items and upload_id (use show_bill with it to see the photo).Report only what the bill states. If you add general knowledge (e.g. how tariffs work),
+       say clearly that it is general, not from this bill."""
+    with db() as conn:
+        return search.get_transaction(conn, transaction_id)
+
+
+def startup() -> None:
+    """Requeue scans interrupted by a restart, resume them, and make sure the search index is complete."""
+    with db() as conn:
+        if jobs.recover_stuck_scans(conn) or conn.execute(
+                "SELECT 1 FROM uploads WHERE status = 'queued' LIMIT 1").fetchone():
+            worker.start()
+        indexed = conn.execute("SELECT count(*) FROM bill_search").fetchone()[0]
+        total = conn.execute("SELECT count(*) FROM transactions").fetchone()[0]
+        if indexed != total:
+            search.rebuild_search_index(conn)
+
+
 if __name__ == "__main__":
+    startup()
     server.run("stdio")
