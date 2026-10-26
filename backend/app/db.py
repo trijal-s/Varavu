@@ -74,16 +74,31 @@ CREATE TABLE IF NOT EXISTS line_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(bill_date);
+
+-- Full-text search over confirmed bills (SQLite FTS5, ranked with BM25).
+CREATE VIRTUAL TABLE IF NOT EXISTS bill_search USING fts5(
+    transaction_id UNINDEXED, vendor_name, bill_number, category, items
+);
 """
 
 
+def db_path() -> str:
+    return os.getenv("VARAVU_DB", "data/varavu.db")
+
+
 def connect(path: str | Path | None = None) -> sqlite3.Connection:
-    """Open the database, creating the file and tables if needed."""
-    path = str(path or os.getenv("VARAVU_DB", "data/varavu.db"))
+    """Open the database, creating the file and tables if needed.
+
+    timeout: wait up to 30 s if another connection (e.g. the background scanner) is writing.
+    WAL mode lets readers and one writer work at the same time.
+    """
+    path = str(path or db_path())
     if path != ":memory:":
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row  # rows behave like dicts: row["total"]
     conn.execute("PRAGMA foreign_keys = ON")
+    if path != ":memory:":
+        conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
     return conn
