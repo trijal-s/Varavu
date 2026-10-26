@@ -1,0 +1,23 @@
+# Secrets and settings
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Real bill photos and anything derived from them
+inbox/
+eval/dataset/private/
+eval/dataset/labels/
+eval/results/
+
+# Database and exports (contain real business data)
+data/
+
+# Editor and OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

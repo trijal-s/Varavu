@@ -1,0 +1,9 @@
+venv/
+data/
+inbox/
+eval/
+tests/
+.env
+__pycache__/
+*.pyc
+.git/

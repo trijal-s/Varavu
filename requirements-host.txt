@@ -1,0 +1,8 @@
+# Only what the hosted server needs (the Ollama and test packages are for local work).
+mcp>=2.3,<3
+starlette
+uvicorn
+python-dotenv
+pydantic>=2
+google-genai
+openpyxl
